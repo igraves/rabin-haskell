@@ -71,37 +71,48 @@ eeuclid a b = let start = (0,0,0,1,1,0,a,b)
                                       eproc (x',y',x1',x2',y1',y2',a',b')
 
 
-msqrt :: Integer -> Integer -> IO (Integer,Integer)
+msqrt :: Integer -> Integer -> IO Integer
 msqrt p a = do
-              d <- getB
-              let a' = a `mod` p 
-              let p1 = powerMod a' ((p+1) `div` 4) p::Integer
-              let xp5 = powerMod a' ((p+3) `div` 8) p::Integer
-              let cp5 = powerMod xp5 (2::Integer) p::Integer
-              let xp5r = xp5 * powerMod 2 ((p-1) `div` 4) p::Integer
-              let (twos,odd) = twofactor (p-1)
-              let capA = powerMod a' odd p
-              let capD = powerMod d odd p 
-              let m = 0
-              let for m i s = if i == s
-                                 then (a^((odd+1) `div` 2) * capD^(m `div` 2)) `mod` p
-                                 else if powerMod (capA * capD^m) (2^(s-1-i)::Integer) p == p-1
-                                   then for (m + 2^i) (i+1) s
-                                   else for m (i+1) s
-
-              if p `mod` 8 == 3 || p `mod` 8 == 7
-                then return (p1, -1 * p1)
-                else if p `mod` 8 == 5 then
-                       if cp5 /= a then return (xp5r, -1*xp5r) else return (xp5,-1*xp5)
-                       else return (1,1)
-            
+              if jacobi a p == 1 
+               then do 
+                      d <- getB
+                      let (i,q) = twofactor (p-1) 
+                      let z = d^q `mod` p
+                          y = z
+                          r = i
+                          x = a^((q-1) `div` 2) `mod` p
+                          b = a*x^2 `mod` p
+                          x' = a*x
+                      lpin (y,r,x',b) 
+               else error "Square provided is not a quadratic residue of the supplied prime."
     where
+      lpin (y,r,x,b) = if b `mod` p == 1
+                          then return x
+                          else if (getM b r) == r
+                            then error "Quadratic residue failure."
+                            else 
+                               let m = getM b r
+                                   t = (y^(2^(r-m-1))) `mod` p
+                                   y' = (t^2) `mod` p
+                                   r' = m `mod` p
+                                   x' = (x*t) `mod` p
+                                   b' = (b * y') `mod` p
+                               in do
+                                   lpin (y',r',x',b')
+      getM b r = let nums = (delete r [1..2^r]) ++ [r]
+                     pr x = (b^(2^x)::Integer) `mod` p == 1
+                  in
+                   srch pr nums
+      srch pred (x:xs) = if (pred x) then x else srch pred xs              
       getB = do
-              genEntry <- getStdRandom (randomR (2::Integer,p-1))
-              if jacobi (genEntry^2 - 4*a) p == -1 
-                then return genEntry 
-                else trace (show $ (genEntry)) getB
+              genEntry <- getStdRandom (randomR (3,2^30))
+              if jacobi genEntry p == -1 
+                then do 
+                      --putStr $ "Using random n: " ++ show genEntry
+                      return genEntry 
+                else getB
 
+--
 twofactor :: Integer -> (Integer,Integer)
 twofactor i = twofactor' (0::Integer,i)
 
