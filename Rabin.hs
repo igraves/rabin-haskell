@@ -89,6 +89,7 @@ msqrt p a = do
       lpin (y,r,x,b) = if b `mod` p == 1
                           then return x
                           else if (getM b r) == r
+                            --This is probably unreachable given we check the legendre symbol at the beginning
                             then error "Quadratic residue failure."
                             else 
                                let m = getM b r
