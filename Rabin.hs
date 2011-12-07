@@ -10,7 +10,7 @@ import qualified Data.Binary as B
 import qualified Data.Binary.Get
 import qualified Data.ByteString.Lazy as BS
 import System.Random
-
+import Math.NumberTheory.Moduli
 
 getKeys :: IO (Integer,Integer)
 getKeys = do
@@ -70,36 +70,43 @@ eeuclid a b = let start = (0,0,0,1,1,0,a,b)
                                     in
                                       eproc (x',y',x1',x2',y1',y2',a',b')
 
+
 msqrt :: Integer -> Integer -> IO (Integer,Integer)
 msqrt p a = do
-              b <- getB
-              let f = a^2 - (b*a) + a
-              let r x = (fexp x (p+1 `div` 2) f)
-              return (r a,-1*(r a))
+              d <- getB
+              let a' = a `mod` p 
+              let p1 = powerMod a' ((p+1) `div` 4) p::Integer
+              let xp5 = powerMod a' ((p+3) `div` 8) p::Integer
+              let cp5 = powerMod xp5 (2::Integer) p::Integer
+              let xp5r = xp5 * powerMod 2 ((p-1) `div` 4) p::Integer
+              let (twos,odd) = twofactor (p-1)
+              let capA = powerMod a' odd p
+              let capD = powerMod d odd p 
+              let m = 0
+              let for m i s = if i == s
+                                 then (a^((odd+1) `div` 2) * capD^(m `div` 2)) `mod` p
+                                 else if powerMod (capA * capD^m) (2^(s-1-i)::Integer) p == p-1
+                                   then for (m + 2^i) (i+1) s
+                                   else for m (i+1) s
 
+              if p `mod` 8 == 3 || p `mod` 8 == 7
+                then return (p1, -1 * p1)
+                else if p `mod` 8 == 5 then
+                       if cp5 /= a then return (xp5r, -1*xp5r) else return (xp5,-1*xp5)
+                       else return (1,1)
             
     where
       getB = do
-              genEntry <- getStdRandom (randomR (1::Integer,p))
-              if ((genEntry^2 - 4*a) `div` p) - p == -1
+              genEntry <- getStdRandom (randomR (2::Integer,p-1))
+              if jacobi (genEntry^2 - 4*a) p == -1 
                 then return genEntry 
                 else trace (show $ (genEntry)) getB
 
---Fast modulo exponentiation
---From the Handbook of Applied Cryptography
---g(x) -> k -> f(a) -> (\x -> g(x)^k `mod` f(x))
-fexp :: Integer  -> Integer ->  Integer -> Integer  
-fexp g 0 f = 1
-fexp g k f = let (z:zs) = (tobits k)
-                 s = if z then g else 1
-              in
-                fexp' g zs s f
-    where            
-          fexp' g [] s f = s
-          fexp' g (k:ks) s f = let g' = (g)^2 `mod` f
-                                in if k -- if this bit is set
-                                 then fexp' g' ks (((g') * (s)) `mod` (f)) f
-                                 else fexp' g' ks s f
-          --convert integral to bits
-          tobits 0 = []
-          tobits i = testBit i 0 : (tobits $ shiftR i 1)
+twofactor :: Integer -> (Integer,Integer)
+twofactor i = twofactor' (0::Integer,i)
+
+twofactor' :: (Integer,Integer) -> (Integer,Integer)
+twofactor' (p,t) = if testBit t 0
+                    then (p,t) 
+                    else twofactor' (p+1,t `div` 2)
+                      

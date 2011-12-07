@@ -8,6 +8,7 @@ import System.IO.Unsafe
 import Data.Bits
 import Debug.Trace
 import System.Random
+import Math.NumberTheory.Primes.Testing
 
 
 type SieveWrt = Writer [Integer]
@@ -47,7 +48,7 @@ sprimes = read $ unsafePerformIO $ readFile $ "primes.txt"
 --
 --Primality Test
 --Simple, dumb
-
+{-
 isPrime :: Integer -> Bool
 isPrime 1 = True
 isPrime 2 = True
@@ -55,7 +56,7 @@ isPrime i = proc nums
   where
     proc (x:xs) =  tracep $ (x*x > i) || i `mod` x /= 0 && proc xs
     nums = [2..i]
-
+-}
 tracep p = traceShow p p
 
 
