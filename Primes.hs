@@ -62,17 +62,16 @@ tracep p = traceShow p p
 
 generatePrime :: IO Integer
 generatePrime = do
-                  genEntry <- getStdRandom (randomR (2^511,2^512-100000::Integer))
+                  genEntry <- getStdRandom (randomR (2^2048,2^2049-100000::Integer))
                   let genList = ssieve [genEntry..genEntry+100000]
                   testPrime genList $ length genList
   where 
     witnesses = [5432,1265,87532,8765,26]
     testPrime genList len = do
                               genPick <- getStdRandom (randomR (0,(len)))
-                              if mrtest (genList !! genPick) witnesses
+                              if isPrime (genList !! genPick)
                                then return (genList !! genPick) 
                                else testPrime genList len
-    mrtest = \x y -> all id $ map (millerRabinPrimality x) y
 
 ------------------------------------------------------------------------------------
 ------------------Miller-Rabin Test From the Haskell Wiki---------------------------
@@ -136,10 +135,16 @@ powMod m = pow' (mulMod m) (squareMod m)
 
 generateKeyPair :: IO (Integer,Integer)
 generateKeyPair = do
-                    key1 <- generatePrime
-                    key2 <- generatePrime
+                    key1 <- generateKeyMod3 --generatePrime
+                    key2 <- generateKeyMod3 --generatePrime
                     return (key1,key2)
 
+generateKeyMod3 :: IO (Integer)
+generateKeyMod3 = do
+                    p <- generatePrime
+                    if (p `mod` 4) == 3
+                      then return p
+                      else generateKeyMod3
 
 writeKeys :: String -> IO ()
 writeKeys fn = do

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Rabin where
 
 import System.IO
@@ -11,6 +12,7 @@ import qualified Data.Binary.Get
 import qualified Data.ByteString.Lazy as BS
 import System.Random
 import Math.NumberTheory.Moduli
+import Numeric (showHex)
 
 getKeys :: IO (Integer,Integer)
 getKeys = do
@@ -19,17 +21,40 @@ getKeys = do
 
 
 testmsg :: [Word8]
-testmsg = [0..255] 
 
+testmsg = [0..4] 
+
+
+
+--31,43
 main = do
           (p,q) <- getKeys
           let n = p * q
           let m = roll testmsg
+          if m > n then error "M is too large." else return ()
+          putStr $ "Message: " ++ (showHex m "") ++ "\n\n"
           let ciphertext = m^2 `mod` n
-          putStr $ show ciphertext
+          putStr $ "Ciphertext: " ++ (showHex ciphertext "") ++ "\n\n"
+          roots <- squareroots ciphertext p q
+          putStr $ foldr (\x y -> y ++ (showHex x "") ++ "\n\n\n") "" roots
+          putStr "Complete."
 
 
 
+--Algorithm 3.44 from the book
+squareroots m p q = do
+                        let n = (p*q)^2
+                        (r,r',s,s') <- sqrts m p q
+                        let (z,c,d) = eeuclid p q
+                        let x = (r*d*q + s*c*p) `mod` n
+                        let y = (r*d*q - s*c*p) `mod` n
+                        let !x1 = x `mod` n
+                        let !x2 = -1 * x1 + n
+                        let !y1 = y `mod` n
+                        let y2 = -1 * y1 + n
+                        return [x1,x2,y1,y2]
+                      
+              
 
 --Taken from Data.Binary Internal source code
 roll :: [Word8] -> Integer
@@ -70,9 +95,24 @@ eeuclid a b = let start = (0,0,0,1,1,0,a,b)
                                     in
                                       eproc (x',y',x1',x2',y1',y2',a',b')
 
+sqrts ::  Integer -> Integer -> Integer -> IO (Integer,Integer,Integer,Integer)
+sqrts a p q  = do
+                   let n = (p*q)^2
+                   let r =  msqrt3 a p 
+                   let s =  msqrt3 a q 
+                   let s' = q - s
+                   let r' = p - r
+                   return (r,r',s,s')
+
+
+
+--For chosen p's and q's === 3 `mod` 4
+msqrt3 :: Integer -> Integer -> Integer
+msqrt3 c p = smpow c ((p+1) `div` 4) p --c^((p+1) `div` 4) `mod` p
+
 
 msqrt :: Integer -> Integer -> IO Integer
-msqrt p a = do
+msqrt a p = do
               if jacobi a p == 1 
                then do 
                       d <- getB
@@ -83,27 +123,27 @@ msqrt p a = do
                           x = a^((q-1) `div` 2) `mod` p
                           b = a*x^2 `mod` p
                           x' = a*x
-                      lpin (y,r,x',b) 
+                      trace ("Loop Entry") $ lpin (y,r,x',b) 
                else error "Square provided is not a quadratic residue of the supplied prime."
     where
-      lpin (y,r,x,b) = if b `mod` p == 1
-                          then return x
-                          else if (getM b r) == r
+      lpin (y,r,x,b) = if trace ("Entry If") $ (trace ("trying the mod") $ (trace ("trying b") b) `mod` (trace ("trying p") p)) == 1
+                          then trace ("Returning x") $ return x
+                          else if trace ("GetM") $ (getM (trace "Trying b" b)  (trace "Trying R" r)) == r
                             --This is probably unreachable given we check the legendre symbol at the beginning
                             then error "Quadratic residue failure."
                             else 
-                               let m = getM b r
-                                   t = (y^(2^(r-m-1))) `mod` p
-                                   y' = (t^2) `mod` p
-                                   r' = m `mod` p
-                                   x' = (x*t) `mod` p
-                                   b' = (b * y') `mod` p
+                               let m = trace ("m getM") $ getM b r
+                                   t = trace ("t calc") $ (y^(2^(r-m-1))) `mod` p
+                                   y' = trace ("t^2") $ (t^2) `mod` p
+                                   r' = trace ("m mod p") $ m `mod` p
+                                   x' = trace ("x * t") $ (x*t) `mod` p
+                                   b' = trace ("b * y'") $ (b * y') `mod` p
                                in do
-                                   lpin (y',r',x',b')
-      getM b r = let nums = (delete r [1..2^r]) ++ [r]
+                                   trace ("Loop") $ lpin (y',r',x',b')
+      getM b r = let nums = [1..2^r]
                      pr x = (b^(2^x)::Integer) `mod` p == 1
                   in
-                   srch pr nums
+                   trace ("Internal getM") $ srch pr nums
       srch pred (x:xs) = if (pred x) then x else srch pred xs              
       getB = do
               genEntry <- getStdRandom (randomR (3,2^30))
@@ -121,4 +161,21 @@ twofactor' :: (Integer,Integer) -> (Integer,Integer)
 twofactor' (p,t) = if testBit t 0
                     then (p,t) 
                     else twofactor' (p+1,t `div` 2)
-                      
+
+
+--Powermodulus schnier style
+smpow :: Integer -> Integer -> Integer -> Integer
+smpow !b !e !m = let e' = binNot e
+                  in
+                   mpow b e' 
+    where
+      mpow b es = mpow' b es 1
+      mpow' b [] r = r
+      mpow' b (x:xs) r = if x 
+                          then mpow' (b^2 `mod` m) xs (r*b `mod` m)
+                          else mpow' (b^2 `mod` m) xs r 
+      binNot ns = binNot' 0 ns
+      binNot' i 0 = []
+      binNot' i n = if testBit n 0 
+                    then (True) : binNot' (i+1) (shiftR n 1)
+                    else (False) : binNot' (i+1) (shiftR n 1)
