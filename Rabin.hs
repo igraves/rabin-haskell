@@ -107,6 +107,7 @@ sqrts a p q  = do
 
 
 --For chosen p's and q's === 3 `mod` 4
+--Requires that your keys are Gaussian Primes
 msqrt3 :: Integer -> Integer -> Integer
 msqrt3 c p = smpow c ((p+1) `div` 4) p --c^((p+1) `div` 4) `mod` p
 

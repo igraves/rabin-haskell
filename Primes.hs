@@ -66,12 +66,26 @@ generatePrime = do
                   let genList = ssieve [genEntry..genEntry+100000]
                   testPrime genList $ length genList
   where 
-    witnesses = [5432,1265,87532,8765,26]
     testPrime genList len = do
                               genPick <- getStdRandom (randomR (0,(len)))
                               if isPrime (genList !! genPick)
                                then return (genList !! genPick) 
                                else testPrime genList len
+
+
+generateGPrime :: IO Integer
+generateGPrime = do
+                  genEntry <- getStdRandom (randomR (2^2048,2^2049-100000::Integer))
+                  let genList = filter isGaussian $ ssieve [genEntry..genEntry+100000]
+                  testPrime genList $ length genList
+  where 
+    testPrime genList len = do
+                              genPick <- getStdRandom (randomR (0,(len)))
+                              let pick = (genList !! genPick)
+                              if isPrime pick 
+                               then return (genList !! genPick) 
+                               else testPrime genList len
+    isGaussian x = x `mod` 4 == 3 
 
 ------------------------------------------------------------------------------------
 ------------------Miller-Rabin Test From the Haskell Wiki---------------------------
@@ -141,10 +155,7 @@ generateKeyPair = do
 
 generateKeyMod3 :: IO (Integer)
 generateKeyMod3 = do
-                    p <- generatePrime
-                    if (p `mod` 4) == 3
-                      then return p
-                      else generateKeyMod3
+                    generateGPrime
 
 writeKeys :: String -> IO ()
 writeKeys fn = do
