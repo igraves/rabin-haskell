@@ -39,8 +39,18 @@ main = do
           putStr $ foldr (\x y -> y ++ (showHex x "") ++ "\n\n\n") "" roots
           putStr "Complete."
 
+encrypt :: Integer -> BS.ByteString -> IO Integer
+encrypt n msg = do
+                  let m = roll $ BS.unpack msg 
+                  if m > n then error "M is too large." else return ()
+                  let ciphertext = m^2 `mod` n
+                  return ciphertext
 
-
+decrypt :: Integer -> Integer -> Integer -> IO [BS.ByteString]
+decrypt p q ct = do
+                  roots <- squareroots ct p q
+                  return $ map (BS.pack . unroll) roots
+                  
 --Algorithm 3.44 from the book
 squareroots m p q = do
                         let n = (p*q)^2
