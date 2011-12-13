@@ -11,13 +11,24 @@ import qualified Data.Binary as B
 import qualified Data.Binary.Get
 import qualified Data.ByteString.Lazy as BS
 import System.Random
+import System.Directory
 import Math.NumberTheory.Moduli
 import Numeric (showHex)
 
 getKeys :: IO (Integer,Integer)
 getKeys = do
-            filecontent <- readFile "keys.txt"
-            return $ read filecontent
+            exists <- doesFileExist "keys.txt"
+            if exists
+              then getKeys'
+              else do
+                     putStr "Keyfile does not exist.  Creating...\n"
+                     writeKeys "keys.txt"
+                     getKeys'
+
+  where
+    getKeys' = do
+                  filecontent <- readFile "keys.txt"
+                  return $ read filecontent
 
 
 testmsg :: [Word8]

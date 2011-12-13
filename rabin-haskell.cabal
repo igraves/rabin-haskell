@@ -1,0 +1,16 @@
+Name:           rabin-haskell
+Version:        0.1
+Cabal-version:  >= 1.2
+Synopsis:       A rough implementation of the Rabin cryptosystem in Haskell.
+Description:    A rough implementation of the Rabin cryptosystem.  Client and server modules are included to transmit messages.
+License:        GPL-3
+License-file:   LICENSE
+Author:         Ian Graves
+Maintainer:     Ian Graves <thegravian@gmail.com>
+Build-Type:     Simple
+Build-Depends:  base >= 4.1, haskell98 >= 1.1,  pureMD5 >= 2.1, bytestring >= 0.9.1, arithmoi >= 0.2, random >= 1.0, binary >= 0.5, mtl >= 2.0, network >= 2.0.3, unix >= 2.4, directory >= 1.1
+
+
+Executable rabin-haskell
+  Main-is: Main.hs
+  Build-Depends:  base >= 4.1, haskell98 >= 1.1,  pureMD5 >= 2.1, bytestring >= 0.9.1, arithmoi >= 0.2, random >= 1.0, binary >= 0.5, mtl >= 2.0, network >= 2.0.3, unix >= 2.4, directory >= 1.1

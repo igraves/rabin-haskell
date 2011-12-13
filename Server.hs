@@ -19,12 +19,13 @@ import Rabin
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Digest.Pure.MD5
+import Control.Monad
 import Debug.Trace
 
 
 
 
-smain = do
+main = do
          withSocketsDo $ listn 
 
 reportSignal sock tid ref = do 
@@ -58,23 +59,23 @@ serveloop sock = do
 serveCon (sock,_) rem = do
                           (p,q) <- getKeys 
                           sendKey sock (p*q)
-                          (Message msg) <- getFrame sock
-                          result <- processMsg p q msg 
+                          --(Message msg) <- getFrame sock
+                          --result <- processMsg p q msg 
                           --putStr $ "Message received: " ++ result ++ "\n"
+                          handleMsg sock p q 
                           return ()
                           
---
-processMsg p q ct = do
-                      msgs <- decrypt p q (roll $ LBS.unpack ct)
-                      let !res = findbss msgs 
-                      putStr "Found a match!"
-                      return res 
-    where
-       testbs (d,m) x = let enstr = runPut $ put x 
-                         in
-                          unsafePerformIO $ (return (d == md5 enstr)) `catch` \_ -> return False
 
-       findbss [] = error "No valid message received"
-       findbss (x:xs) = let (d,m) = trace "Foo" $ decodemsg x 
-                         in
-                           if testbs (d,m) x then (trace m m) else findbss xs
+handleMsg sock p q = do
+                       first <- getFrame sock
+                       case first of
+                            (Message msg)   -> do
+                                                 result <- processMsg p q msg
+                                                 putStr $ "Message received: " ++ result ++ "\n"
+                            (Dossier count) -> do
+                                                  frames <- replicateM (fromIntegral count) (getFrame sock)
+                                                  msgs <- mapM (\(Message msg) -> processMsg p q msg) frames
+                                                  let final = concat msgs
+                                                  putStr $ "Message received: " ++ final ++ "\n"
+
+

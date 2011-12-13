@@ -16,6 +16,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Digest.Pure.MD5
 import Debug.Trace
 import Control.Exception
+import Rabin
 
 
 type Key = Integer
@@ -128,3 +129,57 @@ decodemsg m = unsafePerformIO $ do
                                   msg' <- (return msg) `catch` \_ -> putStr "OH GOD\n" >> return ""
                                   return (d,msg')
 -}
+
+processMsg p q ct = do
+                       msgs <- decrypt p q (ct)
+                       res <- findbss msgs 
+                       return res 
+     where
+        testbs (d,m) x = let enstr = runPut $ put x 
+                          in
+                           (return (d == md5 enstr)) `catch` \(e::SomeException) -> return False
+ 
+        findbss [] = error "No valid message received"
+        findbss (x:xs) = do
+                           --dmsg <- (decodemsg x) `catch` (\(e::SomeException) -> return Nothing)
+                           valid <- bigtest x
+                           case valid of
+                              True -> do 
+                                              Just (d,m) <- (decodemsg x) 
+                                              (return m) 
+                              False -> findbss xs
+       
+        bigtest bs = do
+                        let (a,bs', _) = runGetState (get::Get MD5Digest) bs 0
+                        return $ a == md5 bs' 
+
+encryptMsg p q msg = if length msg > 200 
+                      then do
+                             encryptLongMsg p q msg
+                      else do
+                             encryptPackageMsg p q msg
+
+encryptPackageMsg p q msg = do
+                              let prpmsg = encodemsg msg 
+                              epyld <- encrypt (p*q) $ prpmsg
+                              let pmsg = Message $ epyld
+                              let bytes = repackbs $ runPut $ put pmsg
+                              let size = repackbs $ runPut $ putWord32le ((fromIntegral $ BS.length bytes)::Word32)
+                              return $ BS.append size bytes
+
+encryptLongMsg p q msg = do
+                           let strs = chunkStr msg
+                           msgs <- mapM (encryptPackageMsg p q) strs
+                           let doss = repackbs $ runPut $ put $ Dossier (fromIntegral $ length msgs)
+                           let dsize = repackbs $ runPut $ putWord32le ((fromIntegral $ BS.length doss))
+                           let doss' = BS.append dsize doss
+                           let msgs' = foldr BS.append BS.empty msgs
+                           return $ BS.append doss' msgs' 
+
+chunkStr :: String -> [String]
+chunkStr str = chunk str []
+  where chunk [] r = r
+        chunk s r = let s' = drop 200 s
+                        r' = take 200 s
+                     in
+                      chunk s' (r ++ [r'])
