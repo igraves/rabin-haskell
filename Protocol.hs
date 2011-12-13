@@ -1,5 +1,7 @@
-module Protocol where
+{-# LANGUAGE ScopedTypeVariables #-}
 
+module Protocol where
+import Prelude hiding (catch)
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
@@ -13,6 +15,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS 
 import Data.Digest.Pure.MD5
 import Debug.Trace
+import Control.Exception
 
 
 type Key = Integer
@@ -82,7 +85,7 @@ getFrame :: Socket -> IO Protocol
 getFrame sock = do
                 lenbytes <- recv sock 4
                 let l = runGet getWord32le $ repacklbs lenbytes 
-                putStr $ "Frame size: " ++ (show l) ++ "\n"
+                --putStr $ "Frame size: " ++ (show l) ++ "\n"
                 msgbytes <- recv sock (fromIntegral l)
                 let msg = runGet (get::Get Protocol) $ repacklbs msgbytes
                 return msg
@@ -113,11 +116,15 @@ encodemsg m = let bs = runPut $ put m
                  msg
 
 
-decodemsg :: LBS.ByteString -> (MD5Digest,String)
+decodemsg :: LBS.ByteString -> IO (Maybe (MD5Digest,String))
+decodemsg m = (return $ Just $ (\z y -> runGet y z) m $ do
+                                                        (digest,msg) <- get
+                                                        return (digest,msg)) `catch` \(e::SomeException) -> return Nothing
+                                      {-
 decodemsg m = unsafePerformIO $ do
                                   let (digst,m',_) = runGetState (get::Get MD5Digest) m 0
                                       (msg,_,_) = runGetState (get::Get String) m' 0
                                   d <- (return digst)
                                   msg' <- (return msg) `catch` \_ -> putStr "OH GOD\n" >> return ""
                                   return (d,msg')
-
+-}

@@ -1,5 +1,7 @@
+{-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
 module Client where
-
+import Prelude hiding (catch)
+import Numeric
 import Network.Socket hiding (send, sendTo, recv, recvFrom)
 import Network.Socket.ByteString
 import Network.Socket (setSocketOption, SocketOption(..))
@@ -19,6 +21,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Digest.Pure.MD5
 import System.IO.Unsafe
 import Debug.Trace
+import Control.Exception
 
 
 main = do
@@ -40,7 +43,9 @@ conn host = do
 --                send sock size
 --                send sock bytes 
                 let (Message newmsg) = runGet (get::Get Protocol) $ repacklbs bytes
+                
                 results <- processMsg p q newmsg 
+                putStr $ show results
                 return ()
 
 
@@ -50,15 +55,30 @@ testmessage = "Hello, there!"
 
 processMsg p q ct = do
                        msgs <- decrypt p q (ct)
-                       let !res = findbss msgs 
+                       res <- findbss msgs 
                        putStr "Found a match!"
                        return res 
      where
         testbs (d,m) x = let enstr = runPut $ put x 
                           in
-                           unsafePerformIO $ (return (d == md5 enstr)) `catch` \_ -> return False
+                           (return (d == md5 enstr)) `catch` \(e::SomeException) -> return False
  
         findbss [] = error "No valid message received"
-        findbss (x:xs) = let (d,m) = decodemsg x 
+        findbss (x:xs) = do
+                           --dmsg <- (decodemsg x) `catch` (\(e::SomeException) -> return Nothing)
+                           valid <- bigtest x
+                           case valid of
+                              True -> do 
+                                              Just (d,m) <- (decodemsg x) 
+                                              (return m) 
+                              False -> findbss xs
+       
+        bigtest bs = do
+                        let (a,bs', _) = runGetState (get::Get MD5Digest) bs 0
+                        return $ a == md5 bs' 
+                               
+       {- 
+                      let (d,m) = decodemsg x 
                           in
                             if testbs (d,m) x then (trace m m) else findbss xs                
+                              -}

@@ -53,7 +53,7 @@ decrypt p q ct = do
                   
 --Algorithm 3.44 from the book
 squareroots m p q = do
-                        let n = (p*q)^2
+                        let n = (p*q)
                         (r,r',s,s') <- sqrts m p q
                         let (z,c,d) = eeuclid p q
                         let x = (r*d*q + s*c*p) `mod` n
