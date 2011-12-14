@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
 module Client where
 import Prelude hiding (catch)
 import Network.Socket hiding (send, sendTo, recv, recvFrom)
@@ -19,5 +18,4 @@ conn host tmsg = do
                 msgbytes <- encryptMsg key tmsg 
                 _ <- send sock msgbytes 
                 return ()
-
 
