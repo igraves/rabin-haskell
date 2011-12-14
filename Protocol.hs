@@ -5,17 +5,13 @@ import Prelude hiding (catch)
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
-import Data.Word
 import System.IO.Unsafe
 import System.Random
 import Network.Socket hiding (send, sendTo, recv, recvFrom)
 import Network.Socket.ByteString
-import Network.Socket (setSocketOption, SocketOption(..))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS 
 import Data.Digest.Pure.MD5
-import Debug.Trace
-import Control.Exception
 import Rabin
 
 
@@ -23,13 +19,6 @@ type Key = Integer
 type Name = String
 type Messages = Word32
 type Payload = Integer
-
-
-keysize = 2048
-keybytes = (keysize * 2) `div` 8
-msgsize = 255
-
-delimiter = 0xDEADBEEF::Word32
 
 data Protocol = Hello Key Name   | --0xFFFA
                 Dossier Messages | --0xFFFB
@@ -92,20 +81,22 @@ getFrame sock = do
                 return msg
 
 
+sendKey :: Socket -> Integer -> IO ()
 sendKey sock n = do
                 let msg = Hello n "Rabin-Server"
                     smsg = runPut (put msg)
                     len = (fromIntegral $ LBS.length smsg)::Word32
                     lbytes = runPut $ putWord32le len
-                send sock $ repackbs lbytes
-                send sock $ repackbs smsg
+                _ <- send sock $ repackbs lbytes
+                _ <- send sock $ repackbs smsg
+                return ()
 
-
---rebuildMessage :: Int -> IO
 
 --Repack the bytestring to a lazy bytestring
+repacklbs :: BS.ByteString -> LBS.ByteString
 repacklbs = LBS.pack . BS.unpack
 
+repackbs :: LBS.ByteString -> BS.ByteString
 repackbs = BS.pack . LBS.unpack
 
 --Encoding and decoding messages for the message payload
@@ -120,32 +111,22 @@ encodemsg m = let bs = runPut $ put m
 decodemsg :: LBS.ByteString -> IO (Maybe (MD5Digest,String))
 decodemsg m = (return $ Just $ (\z y -> runGet y z) m $ do
                                                         (digest,msg) <- get
-                                                        return (digest,msg)) `catch` \(e::SomeException) -> return Nothing
-                                      {-
-decodemsg m = unsafePerformIO $ do
-                                  let (digst,m',_) = runGetState (get::Get MD5Digest) m 0
-                                      (msg,_,_) = runGetState (get::Get String) m' 0
-                                  d <- (return digst)
-                                  msg' <- (return msg) `catch` \_ -> putStr "OH GOD\n" >> return ""
-                                  return (d,msg')
--}
+                                                        return (digest,msg))
 
+
+processMsg :: Integer -> Integer -> Integer -> IO String
 processMsg p q ct = do
-                       msgs <- decrypt p q (ct)
-                       res <- findbss msgs 
+                       (ms) <- (decrypt p q ct)
+                       res <- findbss ms 
                        return res 
      where
-        testbs (d,m) x = let enstr = runPut $ put x 
-                          in
-                           (return (d == md5 enstr)) `catch` \(e::SomeException) -> return False
- 
+        findbss :: [LBS.ByteString] -> IO String
         findbss [] = error "No valid message received"
         findbss (x:xs) = do
-                           --dmsg <- (decodemsg x) `catch` (\(e::SomeException) -> return Nothing)
                            valid <- bigtest x
                            case valid of
                               True -> do 
-                                              Just (d,m) <- (decodemsg x) 
+                                              Just (_,m) <- (decodemsg x) 
                                               (return m) 
                               False -> findbss xs
        
@@ -153,23 +134,26 @@ processMsg p q ct = do
                         let (a,bs', _) = runGetState (get::Get MD5Digest) bs 0
                         return $ a == md5 bs' 
 
-encryptMsg p q msg = if length msg > 200 
+encryptMsg ::  Integer -> String -> IO BS.ByteString
+encryptMsg n msg = if length msg > 200 
                       then do
-                             encryptLongMsg p q msg
+                             encryptLongMsg n msg
                       else do
-                             encryptPackageMsg p q msg
+                             encryptPackageMsg n msg
 
-encryptPackageMsg p q msg = do
+encryptPackageMsg :: Integer -> String -> IO BS.ByteString
+encryptPackageMsg n msg = do
                               let prpmsg = encodemsg msg 
-                              epyld <- encrypt (p*q) $ prpmsg
+                              epyld <- encrypt n $ prpmsg
                               let pmsg = Message $ epyld
                               let bytes = repackbs $ runPut $ put pmsg
                               let size = repackbs $ runPut $ putWord32le ((fromIntegral $ BS.length bytes)::Word32)
                               return $ BS.append size bytes
 
-encryptLongMsg p q msg = do
+encryptLongMsg :: Integer -> String -> IO BS.ByteString
+encryptLongMsg n msg = do
                            let strs = chunkStr msg
-                           msgs <- mapM (encryptPackageMsg p q) strs
+                           msgs <- mapM (encryptPackageMsg n) strs
                            let doss = repackbs $ runPut $ put $ Dossier (fromIntegral $ length msgs)
                            let dsize = repackbs $ runPut $ putWord32le ((fromIntegral $ BS.length doss))
                            let doss' = BS.append dsize doss

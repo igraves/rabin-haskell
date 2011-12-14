@@ -1,39 +1,26 @@
 module Server where
 
 import Network.Socket hiding (send, sendTo, recv, recvFrom)
-import Network.Socket.ByteString
-import Network.Socket (setSocketOption, SocketOption(..))
-import Data.Word
 import Data.IORef
 import Data.List
 import System.IO
-import System.IO.Unsafe
 import Control.Concurrent
 import System.Posix.Signals
-import System.Exit
-import Data.Binary.Get
-import Data.Binary.Put
-import Data.Binary
 import Protocol
 import Rabin
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
-import Data.Digest.Pure.MD5
 import Control.Monad
-import Debug.Trace
 
-
-
-
+main :: IO ()
 main = do
          withSocketsDo $ listn 
 
+reportSignal :: Socket -> ThreadId -> IORef Bool -> IO ()
 reportSignal sock tid ref = do 
                               putStrLn "\nShutting down."
                               killThread tid
                               sClose sock 
                               writeIORef ref True
-
+listn :: IO ()
 listn = do
            term <- newIORef False
            sock <- socket AF_INET Stream 0 
@@ -41,22 +28,25 @@ listn = do
            bindSocket sock (SockAddrInet 5555 iNADDR_ANY)
            listen sock 2
            tid <- forkIO $ serveloop sock
-           installHandler keyboardSignal (Catch $ reportSignal sock tid term) Nothing
+           _ <- installHandler keyboardSignal (Catch $ reportSignal sock tid term) Nothing
            waitloop term
 
+waitloop :: IORef Bool -> IO ()
 waitloop term = do
                   end <- readIORef term
                   if end
                    then return ()
                    else waitloop term
 
+serveloop :: Socket -> IO ()
 serveloop sock = do
                    conn <- accept sock
-                   serveCon conn []
+                   serveCon conn
                    serveloop sock
 
 --The connection procedure is here
-serveCon (sock,_) rem = do
+serveCon :: (Socket,SockAddr) -> IO ()
+serveCon (sock,_) = do
                           (p,q) <- getKeys 
                           sendKey sock (p*q)
                           --(Message msg) <- getFrame sock
@@ -65,7 +55,7 @@ serveCon (sock,_) rem = do
                           handleMsg sock p q 
                           return ()
                           
-
+handleMsg :: Socket -> Integer -> Integer -> IO ()
 handleMsg sock p q = do
                        first <- getFrame sock
                        case first of
@@ -77,5 +67,6 @@ handleMsg sock p q = do
                                                   msgs <- mapM (\(Message msg) -> processMsg p q msg) frames
                                                   let final = concat msgs
                                                   putStr $ "Message received: " ++ final ++ "\n"
+                            _ -> error "Received the wrong packet!"
 
 

@@ -26,10 +26,10 @@ serverOpts argv =
           (_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
       where header = "Usage Main [OPTION...]"
 ----
-
+main :: IO ()
 main = do
         args <- getArgs
-        (opts,n) <- serverOpts args
+        (opts,_) <- serverOpts args
         if elem ClientMode opts
           then clientmode opts
           else if elem ServerMode opts 
@@ -37,9 +37,11 @@ main = do
                  else error "You must use client mode or server mode."
         return ()
 
+clientmode :: [Flag] -> IO ()
 clientmode flags = do
                      case pluckInput flags of
                             Just (Input s) -> host s 
+                            Just _ -> error "This is unreachable!"
                             Nothing        -> if elem Stdin flags
                                                 then do
                                                        sn <- hGetContents stdin
@@ -49,10 +51,11 @@ clientmode flags = do
       host msg = case pluckhost flags of
                     Nothing       -> error "You must supply a host address."
                     Just (Host s) -> C.main s msg
+                    Just _ -> error "This should be unreachable...."
       pluckInput [] = Nothing
-      pluckInput ((Input s):xs) = Just $ Input s
+      pluckInput ((Input s):_) = Just $ Input s
       pluckInput (_:xs) = pluckInput xs
 
       pluckhost [] = Nothing
-      pluckhost ((Host s):xs) = Just $ Host s
+      pluckhost ((Host s):_) = Just $ Host s
       pluckhost (_:xs) = pluckhost xs
