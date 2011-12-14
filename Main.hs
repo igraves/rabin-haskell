@@ -3,7 +3,8 @@ import qualified Server as S
 import qualified Client as C
 import System.Console.GetOpt
 import System.IO
-import System
+import System.Environment
+--import System
 
 
 --From the documentation on System.Console.GetOpt

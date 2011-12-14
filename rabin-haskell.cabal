@@ -10,7 +10,7 @@ Name:                rabin-haskell
 Version:             0.1
 
 -- A short (one-line) description of the package.
-Synopsis:            A rough implementation of the Rabin cryptosystem.
+Synopsis:            Implementation of the Rabin Cryptosystem
 
 -- A longer description of the package.
 -- Description:         
@@ -49,11 +49,11 @@ Cabal-version:       >=1.2
 Executable rabin-haskell
   -- .hs or .lhs file containing the Main module.
   Main-is:             
-    Main.hs
+   Main.hs
   
   -- Packages needed in order to build this package.
   Build-depends:       
-    base, haskell98, pureMD5, arithmoi, binary, bytestring, directory, random, mtl, network, unix
+      base, pureMD5, arithmoi, binary, random, unix, bytestring, directory, mtl, network
   -- Modules not exported by this package.
   -- Other-modules:       
   
